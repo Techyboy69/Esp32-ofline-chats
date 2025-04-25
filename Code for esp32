@@ -6,8 +6,8 @@ const char* password = "";            // No password for simplicity
 
 WebServer server(80);  // Create a web server on port 80
 
-String name = "Guest";
 String messages = "";
+int guestCount = 1;
 
 // Serve the HTML page when the user visits the root URL
 void handleRoot() {
@@ -27,50 +27,29 @@ void handleRoot() {
   html += "::placeholder { color: #aaa; }";
   html += "</style></head><body>";
 
-  // Name input form for first-time users
-  if (name == "Guest") {
-    html += "<div id='container'><h3>ESP32 Chatroom</h3>";
-    html += "<p><strong>Please enter your name:</strong></p>";
-    html += "<form method='POST' action='/setname'>";
-    html += "<input type='text' name='name' id='name' placeholder='Your Name' required/>";
-    html += "<button type='submit'>Submit</button>";
-    html += "</form>";
-    html += "</div>";
-  } else {
-    html += "<div id='container'><h3>ESP32 Chatroom - Welcome, " + name + "</h3>";
-    html += "<div id='messages'>" + messages + "</div>";
-    html += "<form method='POST' action='/send' id='form'>";
-    html += "<input type='text' name='msg' id='msg' placeholder='Enter message...' autocomplete='off' required/>";
-    html += "<button type='submit'>Send</button>";
-    html += "</form>";
-    html += "</div>";
-  }
-
+  html += "<div id='container'><h3>ESP32 Chatroom - Guest " + String(guestCount) + "</h3>";
+  html += "<div id='messages'>" + messages + "</div>";
+  html += "<form method='POST' action='/send' id='form'>";
+  html += "<input type='text' name='msg' id='msg' placeholder='Enter message...' autocomplete='off' required/>";
+  html += "<button type='submit'>Send</button>";
+  html += "</form>";
+  html += "</div>";
+  
   html += "</body><script>";
   html += "setInterval(function() {";
   html += "fetch('/').then(response => response.text()).then(html => {";
   html += "document.querySelector('#messages').innerHTML = html.match(/<div id='messages'>(.*?)<\/div>/)[1];";
   html += "});";
-  html += "}, 1000);";  // Refresh every second
+  html += "}, 500);";  // Refresh every 500ms
   html += "</script></html>";
   server.send(200, "text/html", html);
 }
 
-// Handle name submission
-void handleSetName() {
-  if (server.hasArg("name")) {
-    name = server.arg("name");
-  }
-  server.sendHeader("Location", "/");
-  server.send(303);  // Redirect to the root after setting the name
-}
-
 // Handle message sending
 void handleSendMessage() {
-  if (server.hasArg("msg")) {
-    String msg = server.arg("msg");
-    messages += "<div class='msg'><span class='name'>" + name + ":</span> " + msg + "</div>";
-  }
+  String msg = server.arg("msg");
+  messages += "<div class='msg'><span class='name'>Guest " + String(guestCount) + ":</span> " + msg + "</div>";
+  guestCount++;  // Increment for the next user
   server.sendHeader("Location", "/");
   server.send(303);  // Redirect to the root to show updated messages
 }
@@ -86,7 +65,6 @@ void setup() {
 
   // Define routes
   server.on("/", HTTP_GET, handleRoot);
-  server.on("/setname", HTTP_POST, handleSetName);  // Set name route
   server.on("/send", HTTP_POST, handleSendMessage);  // Send message route
 
   // Start the web server
