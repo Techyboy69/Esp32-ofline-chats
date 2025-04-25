@@ -9,6 +9,72 @@ WebServer server(80);  // Create a web server on port 80
 String name = "Guest";
 String messages = "";
 
+// Serve the HTML page when the user visits the root URL
+void handleRoot() {
+  String html = "<html><head><title>ESP32 Chatroom</title>";
+  html += "<style>";
+  html += "body { font-family: Arial, sans-serif; background: #f4f4f9; color: #333; margin: 0; padding: 0; }";
+  html += "#container { max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border-radius: 15px; margin-top: 20px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1); }";
+  html += "h3 { text-align: center; color: #4CAF50; }";
+  html += "#messages { height: 300px; overflow-y: auto; margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background: #fafafa; box-sizing: border-box; }";
+  html += ".msg { margin-bottom: 15px; padding: 8px; background: #f9f9f9; border-radius: 10px; border: 1px solid #ddd; }";
+  html += ".msg span.name { color: #4CAF50; font-weight: bold; }";
+  html += "#form { display: flex; gap: 10px; align-items: center; }";
+  html += "#msg { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; background: #f9f9f9; color: #333; font-size: 16px; }";
+  html += "button { padding: 12px 20px; border: none; background: #4CAF50; color: white; border-radius: 5px; cursor: pointer; transition: background 0.3s ease; }";
+  html += "button:hover { background: #45a049; }";
+  html += "input, button { outline: none; }";
+  html += "::placeholder { color: #aaa; }";
+  html += "</style></head><body>";
+
+  // Name input form for first-time users
+  if (name == "Guest") {
+    html += "<div id='container'><h3>ESP32 Chatroom</h3>";
+    html += "<p><strong>Please enter your name:</strong></p>";
+    html += "<form method='POST' action='/setname'>";
+    html += "<input type='text' name='name' id='name' placeholder='Your Name' required/>";
+    html += "<button type='submit'>Submit</button>";
+    html += "</form>";
+    html += "</div>";
+  } else {
+    html += "<div id='container'><h3>ESP32 Chatroom - Welcome, " + name + "</h3>";
+    html += "<div id='messages'>" + messages + "</div>";
+    html += "<form method='POST' action='/send' id='form'>";
+    html += "<input type='text' name='msg' id='msg' placeholder='Enter message...' autocomplete='off' required/>";
+    html += "<button type='submit'>Send</button>";
+    html += "</form>";
+    html += "</div>";
+  }
+
+  html += "</body><script>";
+  html += "setInterval(function() {";
+  html += "fetch('/').then(response => response.text()).then(html => {";
+  html += "document.querySelector('#messages').innerHTML = html.match(/<div id='messages'>(.*?)<\/div>/)[1];";
+  html += "});";
+  html += "}, 1000);";  // Refresh every second
+  html += "</script></html>";
+  server.send(200, "text/html", html);
+}
+
+// Handle name submission
+void handleSetName() {
+  if (server.hasArg("name")) {
+    name = server.arg("name");
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);  // Redirect to the root after setting the name
+}
+
+// Handle message sending
+void handleSendMessage() {
+  if (server.hasArg("msg")) {
+    String msg = server.arg("msg");
+    messages += "<div class='msg'><span class='name'>" + name + ":</span> " + msg + "</div>";
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);  // Redirect to the root to show updated messages
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -18,48 +84,10 @@ void setup() {
   Serial.print("IP Address: ");
   Serial.println(WiFi.softAPIP());
 
-  // Serve the HTML page when the user visits the root URL
-  server.on("/", HTTP_GET, []() {
-    String html = "<html><head><title>ESP32 Chatroom</title>";
-    html += "<style>";
-    html += "body { font-family: Arial, sans-serif; background: #f4f4f9; color: #333; margin: 0; padding: 0; }";
-    html += "#container { max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border-radius: 15px; margin-top: 20px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1); }";
-    html += "h3 { text-align: center; color: #4CAF50; }";
-    html += "#messages { height: 300px; overflow-y: auto; margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background: #fafafa; box-sizing: border-box; }";
-    html += ".msg { margin-bottom: 15px; padding: 8px; background: #f9f9f9; border-radius: 10px; border: 1px solid #ddd; }";
-    html += ".msg span.name { color: #4CAF50; font-weight: bold; }";
-    html += "#form { display: flex; gap: 10px; align-items: center; }";
-    html += "#msg { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; background: #f9f9f9; color: #333; font-size: 16px; }";
-    html += "button { padding: 12px 20px; border: none; background: #4CAF50; color: white; border-radius: 5px; cursor: pointer; transition: background 0.3s ease; }";
-    html += "button:hover { background: #45a049; }";
-    html += "input, button { outline: none; }";
-    html += "::placeholder { color: #aaa; }";
-    html += "</style></head><body>";
-    html += "<div id='container'><h3>ESP32 Chatroom</h3>";
-    html += "<div id='messages'>" + messages + "</div>";
-    html += "<form method='POST' action='/send' id='form'>";
-    html += "<input type='text' name='msg' id='msg' placeholder='Enter message...' autocomplete='off' required/>";
-    html += "<button type='submit'>Send</button>";
-    html += "</form>";
-    html += "</div></body><script>";
-    html += "setInterval(function() {";
-    html += "fetch('/').then(response => response.text()).then(html => {";
-    html += "document.querySelector('#messages').innerHTML = html.match(/<div id='messages'>(.*?)<\/div>/)[1];";
-    html += "});";
-    html += "}, 1000);";
-    html += "</script></html>";
-    server.send(200, "text/html", html);
-  });
-
-  // Handle message sending
-  server.on("/send", HTTP_POST, []() {
-    if (server.hasArg("msg")) {
-      String msg = server.arg("msg");
-      messages += "<div><span class='name'>" + name + ":</span> " + msg + "</div>";
-      server.sendHeader("Location", "/");
-      server.send(303);
-    }
-  });
+  // Define routes
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/setname", HTTP_POST, handleSetName);  // Set name route
+  server.on("/send", HTTP_POST, handleSendMessage);  // Send message route
 
   // Start the web server
   server.begin();
