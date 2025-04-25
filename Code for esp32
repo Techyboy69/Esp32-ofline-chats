@@ -1,76 +1,60 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "ESP32_Chatroom";  // Wi-Fi SSID
-const char* password = "";            // No password for simplicity
+const char* ssid = "ESP32_Chatroom";
+const char* password = "";
 
-WebServer server(80);  // Create a web server on port 80
+WebServer server(80);
 
 String messages = "";
 int guestCount = 1;
 
-// Serve the HTML page when the user visits the root URL
 void handleRoot() {
-  String html = "<html><head><title>ESP32 Chatroom</title>";
+  String html = "<!DOCTYPE html><html><head><title>ESP32 Chat</title>";
+  html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
   html += "<style>";
-  html += "body { font-family: Arial, sans-serif; background: #f4f4f9; color: #333; margin: 0; padding: 0; }";
-  html += "#container { max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border-radius: 15px; margin-top: 20px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1); }";
-  html += "h3 { text-align: center; color: #4CAF50; }";
-  html += "#messages { height: 300px; overflow-y: auto; margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background: #fafafa; box-sizing: border-box; }";
-  html += ".msg { margin-bottom: 15px; padding: 8px; background: #f9f9f9; border-radius: 10px; border: 1px solid #ddd; }";
-  html += ".msg span.name { color: #4CAF50; font-weight: bold; }";
-  html += "#form { display: flex; gap: 10px; align-items: center; }";
-  html += "#msg { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; background: #f9f9f9; color: #333; font-size: 16px; }";
-  html += "button { padding: 12px 20px; border: none; background: #4CAF50; color: white; border-radius: 5px; cursor: pointer; transition: background 0.3s ease; }";
-  html += "button:hover { background: #45a049; }";
-  html += "input, button { outline: none; }";
-  html += "::placeholder { color: #aaa; }";
+  html += "body{font-family:sans-serif;background:#f0f0f0;margin:0;padding:20px;}";
+  html += "#chat{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px #ccc;}";
+  html += "#messages{height:300px;overflow-y:auto;border:1px solid #ccc;padding:10px;border-radius:5px;background:#fafafa;}";
+  html += "form{display:flex;margin-top:10px;}input{flex:1;padding:10px;border-radius:5px;border:1px solid #ccc;}";
+  html += "button{padding:10px 15px;background:#28a745;color:white;border:none;border-radius:5px;margin-left:5px;}";
   html += "</style></head><body>";
+  html += "<div id='chat'><h2>ESP32 Chatroom</h2>";
+  html += "<div id='messages'></div>";
+  html += "<form onsubmit='sendMessage(event)'><input type='text' id='msg' placeholder='Type message' required><button>Send</button></form></div>";
+  html += "<script>";
+  html += "let guest='Guest " + String(guestCount++) + "';";
+  html += "function fetchMessages(){fetch('/messages').then(r=>r.text()).then(t=>{document.getElementById('messages').innerHTML=t;});}";
+  html += "function sendMessage(e){e.preventDefault();let m=document.getElementById('msg').value;fetch('/send?msg='+encodeURIComponent(guest+': '+m)).then(()=>{document.getElementById('msg').value='';fetchMessages();});}";
+  html += "setInterval(fetchMessages,500);fetchMessages();";
+  html += "</script></body></html>";
 
-  html += "<div id='container'><h3>ESP32 Chatroom - Guest " + String(guestCount) + "</h3>";
-  html += "<div id='messages'>" + messages + "</div>";
-  html += "<form method='POST' action='/send' id='form'>";
-  html += "<input type='text' name='msg' id='msg' placeholder='Enter message...' autocomplete='off' required/>";
-  html += "<button type='submit'>Send</button>";
-  html += "</form>";
-  html += "</div>";
-  
-  html += "</body><script>";
-  html += "setInterval(function() {";
-  html += "fetch('/').then(response => response.text()).then(html => {";
-  html += "document.querySelector('#messages').innerHTML = html.match(/<div id='messages'>(.*?)<\/div>/)[1];";
-  html += "});";
-  html += "}, 500);";  // Refresh every 500ms
-  html += "</script></html>";
   server.send(200, "text/html", html);
 }
 
-// Handle message sending
-void handleSendMessage() {
-  String msg = server.arg("msg");
-  messages += "<div class='msg'><span class='name'>Guest " + String(guestCount) + ":</span> " + msg + "</div>";
-  guestCount++;  // Increment for the next user
-  server.sendHeader("Location", "/");
-  server.send(303);  // Redirect to the root to show updated messages
+void handleSend() {
+  if (server.hasArg("msg")) {
+    messages += "<div>" + server.arg("msg") + "</div>";
+  }
+  server.send(200, "text/plain", "OK");
+}
+
+void handleMessages() {
+  server.send(200, "text/html", messages);
 }
 
 void setup() {
   Serial.begin(115200);
-
-  // Set up Wi-Fi as an access point
   WiFi.softAP(ssid, password);
-  Serial.println("ESP32 Chatroom AP started");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.softAPIP());
+  Serial.println("Access Point started. Connect to: ESP32_Chatroom");
+  Serial.println("IP: " + WiFi.softAPIP().toString());
 
-  // Define routes
-  server.on("/", HTTP_GET, handleRoot);
-  server.on("/send", HTTP_POST, handleSendMessage);  // Send message route
-
-  // Start the web server
+  server.on("/", handleRoot);
+  server.on("/send", handleSend);
+  server.on("/messages", handleMessages);
   server.begin();
 }
 
 void loop() {
-  server.handleClient();  // Handle incoming client requests
+  server.handleClient();
 }
